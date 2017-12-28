@@ -6,6 +6,7 @@ class TicketStatus(Enum):
     MISSED = 'Missed'
     IMMATURE = 'Immature'
     MEMPOOL = 'Mempool'
+    EXPIRED = 'Expired'
 
 class Ticket():
     def __init__(self, txhash, purchase_date, price, fee, status):
@@ -15,5 +16,6 @@ class Ticket():
         self.purchase_date = purchase_date
         self.fee = fee
         self.block = 0
+        self.reward = 0
         self.vote_date = None
 
