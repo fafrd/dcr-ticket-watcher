@@ -4,9 +4,11 @@ import signal
 import sys
 import json
 import argparse
+import threading
+import zerorpc
 
 from datetime import datetime
-from ticket import Ticket, TicketStatus
+from ticket import Ticket, TicketStatus, TicketJSONSerializer
 
 dcrwallet_log_file = os.path.expanduser('~/.dcrwallet/logs/mainnet/dcrwallet.log')
 datetime_format = '%Y-%m-%d %H:%M:%S'
@@ -22,7 +24,7 @@ block_height = 0
 parser = argparse.ArgumentParser()
 parser.add_argument('-l', help='The dcrwallet log file to watch.')
 parser.add_argument('--simnet', help='Indicates that the log file is a simnet log file.', action='store_true')
-
+parser.add_argument('--port', help='The port that the RPC server should run on', type=int, default=44556)
 
 # Signal handler to catch SIGINT
 def signal_handler(signal, frame):
@@ -113,6 +115,37 @@ def print_tickets():
     for ticket in tickets.values():
         print(ticket.status.name + '\t' + ticket.txhash + '\t' + str(ticket.price))
 
+class ticketdRPC():
+    def getTickets(self):
+        global tickets
+        global block_height
+
+        obj = {'block_height' : block_height, 'tickets' : [t for t in tickets]}
+        return json.dumps(obj, cls=TicketJSONSerializer)
+
+
+def run():
+    global tickets
+    global dcrwallet_log_file
+
+    # Open tail process and monitor the output for line changes
+    f = subprocess.Popen(['tail', '-n', '+1', '-f', dcrwallet_log_file], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    while True:
+        line = f.stdout.readline().decode('utf-8');
+
+        if 'Successfully sent SStx purchase transaction' in line:
+            handle_new_ticket(line)
+            print_tickets()
+        elif 'Voted on block' in line:
+            handle_vote(line)
+            print_tickets()
+        elif 'Failed to sign vote for ticket hash' in line:
+            handle_miss(line)
+            print_tickets()
+        elif 'Connecting block' in line:
+            block_height = int(line.split()[-1])
+            handle_new_block()
+
 
 # Entry point. 
 def main():
@@ -133,24 +166,16 @@ def main():
     if args.l:
         dcrwallet_log_file = os.path.expanduser(args.l)
 
-    # Open tail process and monitor the output for line changes
-    f = subprocess.Popen(['tail', '-n', '+1', '-f', dcrwallet_log_file], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    while True:
-        line = f.stdout.readline().decode('utf-8');
+    thread = threading.Thread(target=run, args=())
+    thread.daemon = True
+    thread.start()
 
-        if 'Successfully sent SStx purchase transaction' in line:
-            handle_new_ticket(line)
-            print_tickets()
-        elif 'Voted on block' in line:
-            handle_vote(line)
-            print_tickets()
-        elif 'Failed to sign vote for ticket hash' in line:
-            handle_miss(line)
-            print_tickets()
-        elif 'Connecting block' in line:
-            block_height = int(line.split()[-1])
-            handle_new_block()
+    print('lul')
 
+    # Start RPC server
+    server = zerorpc.Server(ticketdRPC())
+    server.bind('tcp://0.0.0.0:' + str(args.port))
+    server.run()
 
 # Main
 if __name__ == '__main__':

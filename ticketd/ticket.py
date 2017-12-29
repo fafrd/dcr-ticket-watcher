@@ -1,4 +1,11 @@
+from json import JSONEncoder
 from enum import Enum
+
+class TicketJSONSerializer(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, TicketStatus):
+            return obj.name
+        return JSONEncoder.default(self, obj)
 
 class TicketStatus(Enum):
     LIVE = 'Live'
