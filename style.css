@@ -1,0 +1,29 @@
+body {
+    background: rgba(0,0,0,.9);
+}
+
+p.header {
+    font-weight: bold;
+    margin-bottom: 0rem;
+}
+
+nav {
+    box-shadow: 0 0 0.4rem rgba(0,0,0,.1), 0 0.4rem 0.8rem rgba(0,0,0,.2)
+}
+
+.text-muted {
+   padding-top: 10px; 
+}
+
+.ticket-count {
+    font-size: 64px;
+    color: #dee2e6;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.circle-wrapper {
+    position: relative;
+}
