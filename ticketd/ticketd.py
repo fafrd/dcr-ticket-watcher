@@ -19,6 +19,7 @@ tickets = {}
 mempool_tickets = set()
 immature_tickets = set()
 block_height = 0
+wallet_unlocked = False
 
 # Configure argument parser
 parser = argparse.ArgumentParser()
@@ -30,7 +31,7 @@ parser.add_argument('--port', help='The port that the RPC server should run on',
 def signal_handler(signal, frame):
     print('\nExiting ticketd...')
     sys.exit(0)
-
+:q
 
 # Executes a 'dcrctl --wallet' command with the given options and returns a parsed JSON object.
 def execute_dcrwallet_command(command):

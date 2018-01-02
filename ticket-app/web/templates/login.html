@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+    	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.3/css/bootstrap.min.css">
+		<link rel="stylesheet" href="style.css">
+		<link rel="shortcut icon" type="image/png" href="logo.png"/>
+    	<title>Ticket Dashboard</title>
+	</head>
+	<body>
+		<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+			<a class="navbar-brand" href="#">
+				<img src="./logo.svg" width="24" height="24">
+			</a>
+			<p class="header navbar-brand mr-auto">Ticket Watcher</p>
+		</nav>
+
+		<main role="main" style="padding: 4rem; padding-top: 5rem" class="col-sm-9 col-md-12">
+			<div align="center">
+				{% if failed %}
+				<div class="alert alert-danger" role="alert">
+					  Incorrect password. Please try again.
+				</div>
+				{% endif %}
+				<form class="form-inline" method="post" action="login" style="display: block">
+					<input name="password" type="password" class="form-control mb-2 mr-sm-2" id="passwordField" placeholder="Password">
+					<button type="submit" class="btn btn-primary mb-2">Submit</button>
+				</form>
+			</div>
+		</main>
+			
+		
+		<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.3/js/bootstrap.min.js"></script>
+	</body>
+</html>

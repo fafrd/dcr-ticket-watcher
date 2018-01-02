@@ -5,20 +5,31 @@
     	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
 		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.3/css/bootstrap.min.css">
-		<link rel="stylesheet" href="./style.css">
-    	<title>Ticket Watcher</title>
+		<link href="https://use.fontawesome.com/releases/v5.0.2/css/all.css" rel="stylesheet">
+		<link rel="stylesheet" href="style.css">
+		<link rel="shortcut icon" type="image/png" href="logo.png"/>
+    	<title>Ticket Dashboard</title>
 	</head>
 	<body>
 		<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
 			<a class="navbar-brand" href="#">
-				<img src="./logo.svg" width="24" height="24">
+				<img src="logo.svg" width="24" height="24">
 			</a>
-			<p class="header navbar-brand mr-auto">Ticket Watcher</p>
-			<p class="header navbar-brand" style="font-weight: normal">Block #10</p>
+			<p class="header navbar-brand mr-auto">Ticket Dashboard</p>
+			{% if data != None %}
+			<p class="header navbar-brand" style="font-weight: normal">Block #{{ data.blockheight }}</p>
+			{% endif %}
 		</nav>
 
 		<main role="main" style="padding: 4rem; padding-top: 5rem" class="col-sm-9 col-md-12">
-  
+			{% if not data %}
+			
+			<div class="alert alert-danger" role="alert">
+				Error: could not connect to the RPC server. Is ticketd running?	
+			</div>
+
+			{% else %}
+
 			<section class="row text-center placeholders">
 				<!-- Live -->
 				<div class="col-6 col-sm-2 placeholder">
@@ -105,7 +116,9 @@
 				</tbody>
 			  </table>
 			</div>
-		  </main>
+			{% endif %}
+
+		</main>
 		
 		<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
