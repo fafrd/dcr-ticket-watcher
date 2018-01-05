@@ -6,20 +6,28 @@ import json
 import argparse
 import threading
 import zerorpc
+import urllib.request
 
 from datetime import datetime
 from ticket import Ticket, TicketStatus, TicketJSONSerializer
+from ticketd_utils import parse_datetime
 
 dcrwallet_log_file = os.path.expanduser('~/.dcrwallet/logs/mainnet/dcrwallet.log')
-datetime_format = '%Y-%m-%d %H:%M:%S'
+cmc_api_url = 'https://api.coinmarketcap.com/v1/ticker/decred/'
 
 # Important global variables
 default_dcrctl_command = ['dcrctl', '--wallet']
 tickets = {}
 mempool_tickets = set()
 immature_tickets = set()
+caught_up = False
+
+# Network stats
 block_height = 0
 wallet_unlocked = False
+dcr_price_usd = 0.0
+ticket_price = 0.0
+ticket_pool_size = 0
 
 # Configure argument parser
 parser = argparse.ArgumentParser()
@@ -31,12 +39,30 @@ parser.add_argument('--port', help='The port that the RPC server should run on',
 def signal_handler(signal, frame):
     print('\nExiting ticketd...')
     sys.exit(0)
-:q
+
 
 # Executes a 'dcrctl --wallet' command with the given options and returns a parsed JSON object.
 def execute_dcrwallet_command(command):
     result = subprocess.check_output(default_dcrctl_command + command).decode('utf-8')
     return json.loads(result)
+
+
+def update_network_stats():
+    global wallet_unlocked
+    global dcr_price_usd
+    global ticket_price
+    global ticket_pool_size
+
+    data = execute_dcrwallet_command(['getstakeinfo'])
+    ticket_pool_size = int(data['poolsize'])
+    ticket_price = float(data['difficulty'])
+    
+    data = execute_dcrwallet_command(['walletinfo'])
+    wallet_unlocked = bool(data['unlocked'])
+
+    data = urllib.request.urlopen(cmc_api_url).read().decode()
+    data = json.loads(data)[0]
+    dcr_price_usd = float(data['price_usd'])
 
 
 # Function that gets called every block. It check all of the mempool and immature tickets to see if they
@@ -64,9 +90,8 @@ def handle_new_block():
 
 
 # Function that gets called every time a new ticket is bought.
-def handle_new_ticket(line):
-    pieces = line.split()
-    purchase_date = datetime.strptime(' '.join(pieces[:2])[:-4], datetime_format)
+def handle_new_ticket(pieces):
+    purchase_date = parse_datetime(pieces[:2])
     txhash = pieces[-1]
     
     txinfo = execute_dcrwallet_command(['gettransaction', txhash])
@@ -79,9 +104,8 @@ def handle_new_ticket(line):
 
 
 # Function that gets called every time a ticket is called to votes.
-def handle_vote(line):
-    pieces = line.split()
-    vote_date = datetime.strptime(' '.join(pieces[:2])[:-4], datetime_format)
+def handle_vote(pieces):
+    vote_date = parse_datetime(pieces[:2])
     txhash = pieces[-6]
     vote_hash = pieces[-3]
 
@@ -99,10 +123,8 @@ def handle_vote(line):
 
 
 # Function that gets called every time a ticket misses.
-def handle_miss(line):
-    pieces = line.split()
-
-    miss_date = datetime.strptime(' '.join(pieces[:2])[:-4], datetime_format)
+def handle_miss(pieces):
+    miss_date = parse_datetime(pieces[:2])
     txhash = pieces[11][:-1]
 
     ticket = tickets[txhash]
@@ -110,52 +132,67 @@ def handle_miss(line):
     ticket.status = TicketStatus.MISSED
 
 
-def print_tickets():
-    os.system('clear')
-    print('status\ttxhash\tprice')
-    for ticket in tickets.values():
-        print(ticket.status.name + '\t' + ticket.txhash + '\t' + str(ticket.price))
-
 class ticketdRPC():
     def getTickets(self):
         global tickets
         global block_height
 
-        obj = {'block_height' : block_height, 'tickets' : [t for t in tickets]}
+        obj = {
+                'block_height' : block_height,
+                'ticket_price' : ticket_price,
+                'ticket_pool_size': ticket_pool_size,
+                'price_usd' : dcr_price_usd,
+                'tickets' : [t for t in tickets]
+        }
         return json.dumps(obj, cls=TicketJSONSerializer)
 
 
-def run():
+def run_daemon(parent_pid):
     global tickets
     global dcrwallet_log_file
+    
+    # Read network stats and store them before we try to catch up.
+    update_network_stats()
+
+    # Find the date and time of the most recent log entry in the dcrwallet log file
+    most_recent_log_date = None
+    f = subprocess.Popen(['tail', '-n', '1', dcrwallet_log_file], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    res, err = f.communicate()
+    if err:
+        print('An error occured while reading log file: ' + err.decode())
+        os.kill(parent_pid, signal.SIGINT)
+        return
+    else:
+        pieces = res.decode().split()
+        most_recent_log_date = parse_datetime(pieces[:2])
 
     # Open tail process and monitor the output for line changes
-    f = subprocess.Popen(['tail', '-n', '+1', '-f', dcrwallet_log_file], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    f = subprocess.Popen(['tail', '-n', '+1', '-f', dcrwallet_log_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     while True:
         line = f.stdout.readline().decode('utf-8');
+        pieces = line.split()
+        date = parse_datetime(pieces[:2])
 
         if 'Successfully sent SStx purchase transaction' in line:
-            handle_new_ticket(line)
-            print_tickets()
+            handle_new_ticket(pieces)
         elif 'Voted on block' in line:
-            handle_vote(line)
-            print_tickets()
+            handle_vote(pieces)
         elif 'Failed to sign vote for ticket hash' in line:
-            handle_miss(line)
-            print_tickets()
+            handle_miss(pieces)
         elif 'Connecting block' in line:
-            block_height = int(line.split()[-1])
+            block_height = int(pieces[-1])
             handle_new_block()
+
 
 
 # Entry point. 
 def main():
     global dcrwallet_log_file
     global tickets
+
     tickets = {}
     
     signal.signal(signal.SIGINT, signal_handler)
-    os.system('clear')
 
     args = parser.parse_args()
 
@@ -167,11 +204,9 @@ def main():
     if args.l:
         dcrwallet_log_file = os.path.expanduser(args.l)
 
-    thread = threading.Thread(target=run, args=())
+    thread = threading.Thread(target=run_daemon, args=(os.getpid(),))
     thread.daemon = True
     thread.start()
-
-    print('lul')
 
     # Start RPC server
     server = zerorpc.Server(ticketdRPC())
