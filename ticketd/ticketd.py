@@ -79,7 +79,7 @@ def handle_new_block():
             immature_tickets.add(ticket)
             mempool_tickets.remove(ticket)
     
-    if immuture_tickets.empty():
+    if immature_tickets.empty():
         return
 
     immature_tickets_copy = [x for x in immature_tickets]
